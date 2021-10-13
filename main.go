@@ -17,72 +17,10 @@ limitations under the License.
 package main
 
 import (
-	"os"
-	"slime.io/slime/slime-framework/util"
-
-	log "github.com/sirupsen/logrus"
-	"k8s.io/apimachinery/pkg/runtime"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
-
-	ctrl "sigs.k8s.io/controller-runtime"
-	"slime.io/slime/slime-framework/apis/networking/v1alpha3"
-	"slime.io/slime/slime-framework/bootstrap"
-	microserviceslimeiov1alpha1 "slime.io/slime/modules/plugin/api/v1alpha1"
-	"slime.io/slime/modules/plugin/controllers"
-	// +kubebuilder:scaffold:imports
+	"slime.io/slime/modules/plugin/module"
+	"slime.io/slime/slime-framework/model"
 )
 
-var scheme = runtime.NewScheme()
-
-func init() {
-	_ = clientgoscheme.AddToScheme(scheme)
-
-	_ = microserviceslimeiov1alpha1.AddToScheme(scheme)
-	// +kubebuilder:scaffold:scheme
-	_ = v1alpha3.AddToScheme(scheme)
-}
-
 func main() {
-	config := bootstrap.GetModuleConfig()
-	err := util.InitLog(config.Global.Log.LogLevel, config.Global.Log.KlogLevel)
-	if err != nil {
-		panic(err.Error())
-	}
-
-	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme:             scheme,
-		MetricsBindAddress: config.Global.Misc["metrics-addr"],
-		Port:               9443,
-		LeaderElection:     config.Global.Misc["enable-leader-election"] == "on",
-		LeaderElectionID:   "plugin",
-	})
-	if err != nil {
-		log.Errorf("unable to start manager,%+v", err)
-		os.Exit(1)
-	}
-
-	if err = (&controllers.PluginManagerReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		log.Errorf("unable to create pluginManager controller, %+v", err)
-		os.Exit(1)
-	}
-	if err = (&controllers.EnvoyPluginReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		log.Errorf("unable to create EnvoyPlugin controller, %+v", err)
-		os.Exit(1)
-	}
-	// +kubebuilder:scaffold:builder
-
-	go bootstrap.AuxiliaryHttpServerStart(config.Global.Misc["aux-addr"])
-
-	log.Info("starting manager")
-	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
-		log.Errorf("problem running manager,%+v", err)
-		os.Exit(1)
-	}
+	model.Main(module.Name, []model.Module{&module.Module{}})
 }
