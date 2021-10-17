@@ -8,12 +8,12 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"slime.io/slime/framework/apis/config/v1alpha1"
+	istionetworkingapi "slime.io/slime/framework/apis/networking/v1alpha3"
+	"slime.io/slime/framework/bootstrap"
+	"slime.io/slime/framework/model"
 	pluginapiv1alpha1 "slime.io/slime/modules/plugin/api/v1alpha1"
 	"slime.io/slime/modules/plugin/controllers"
-	"slime.io/slime/slime-framework/apis/config/v1alpha1"
-	istionetworkingapi "slime.io/slime/slime-framework/apis/networking/v1alpha3"
-	"slime.io/slime/slime-framework/bootstrap"
-	"slime.io/slime/slime-framework/model"
 )
 
 const Name = "plugin"

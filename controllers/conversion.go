@@ -13,7 +13,7 @@ import (
 	envoy_extensions_wasm_v3 "github.com/envoyproxy/go-control-plane/envoy/extensions/wasm/v3"
 	log "github.com/sirupsen/logrus"
 
-	"slime.io/slime/slime-framework/util"
+	"slime.io/slime/framework/util"
 	"slime.io/slime/modules/plugin/api/v1alpha1"
 
 	"github.com/gogo/protobuf/types"
