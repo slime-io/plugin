@@ -11,7 +11,6 @@ import (
 
 	envoy_config_core_v3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	envoy_extensions_wasm_v3 "github.com/envoyproxy/go-control-plane/envoy/extensions/wasm/v3"
-	log "github.com/sirupsen/logrus"
 
 	"slime.io/slime/framework/util"
 	"slime.io/slime/modules/plugin/api/v1alpha1"
