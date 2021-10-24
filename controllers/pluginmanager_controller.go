@@ -30,6 +30,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"slime.io/slime/framework/apis/networking/v1alpha3"
 	"slime.io/slime/framework/bootstrap"
+	"slime.io/slime/framework/model"
 	"slime.io/slime/framework/util"
 	microserviceslimeiov1alpha1types "slime.io/slime/modules/plugin/api/v1alpha1"
 	"slime.io/slime/modules/plugin/api/v1alpha1/wrapper"
@@ -57,13 +58,19 @@ func (r *PluginManagerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 	instance := &wrapper.PluginManager{}
 	err := r.Client.Get(context.TODO(), req.NamespacedName, instance)
 
-	// 异常分支
-	if err != nil && !errors.IsNotFound(err) {
-		return reconcile.Result{}, err
+	if err != nil {
+		if errors.IsNotFound(err) {
+			// TODO del relevant resource
+			return reconcile.Result{}, nil
+		} else {
+			return reconcile.Result{}, err
+		}
 	}
 
-	// 资源删除
-	if err != nil && errors.IsNotFound(err) {
+	istioRev := model.IstioRevFromLabel(instance.Labels)
+	if !r.env.RevInScope(istioRev) {
+		log.Debugf("existing pluginmanager %v istiorev %s but out %s, skip ...",
+			req.NamespacedName, istioRev, r.env.IstioRev())
 		return reconcile.Result{}, nil
 	}
 
@@ -79,19 +86,30 @@ func (r *PluginManagerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 			return reconcile.Result{}, nil
 		}
 	}
+	model.PatchIstioRevLabel(&ef.Labels, istioRev)
 
 	found := &v1alpha3.EnvoyFilter{}
-	err = r.Client.Get(context.TODO(), types.NamespacedName{Name: ef.Name, Namespace: ef.Namespace}, found)
-	if err != nil && errors.IsNotFound(err) {
+	nsName := types.NamespacedName{Name: ef.Name, Namespace: ef.Namespace}
+	err = r.Client.Get(context.TODO(), nsName, found)
+
+	if err != nil {
+		if errors.IsNotFound(err) {
+			found = nil
+			err = nil
+		}
+	}
+
+	if found == nil {
 		log.Infof("Creating a new EnvoyFilter in %s:%s", ef.Namespace, ef.Name)
 		err = r.Client.Create(context.TODO(), ef)
 		if err != nil {
 			return reconcile.Result{}, err
 		}
-	} else if err != nil {
-		return reconcile.Result{}, err
+	} else if model.IstioRevFromLabel(found.Labels) != istioRev {
+		log.Debugf("existing envoyfilter %v istioRev %s but our %s, skip ...", nsName, model.IstioRevFromLabel(found.Labels), istioRev)
+		return reconcile.Result{}, nil
 	} else {
-		log.Infof("Update a EnvoyFilter in %s:%s", ef.Namespace, ef.Name)
+		log.Infof("Update a EnvoyFilter in %v", nsName)
 		ef.ResourceVersion = found.ResourceVersion
 		err := r.Client.Update(context.TODO(), ef)
 		if err != nil {

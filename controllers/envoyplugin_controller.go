@@ -29,6 +29,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"slime.io/slime/framework/apis/networking/v1alpha3"
+	"slime.io/slime/framework/bootstrap"
+	"slime.io/slime/framework/model"
 	"slime.io/slime/framework/util"
 	microserviceslimeiov1alpha1types "slime.io/slime/modules/plugin/api/v1alpha1"
 	microserviceslimeiov1alpha1 "slime.io/slime/modules/plugin/api/v1alpha1/wrapper"
@@ -38,6 +40,7 @@ import (
 type EnvoyPluginReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
+	Env    *bootstrap.Environment
 }
 
 // +kubebuilder:rbac:groups=microservice.slime.io.my.domain,resources=envoyplugins,verbs=get;list;watch;create;update;patch;delete
@@ -48,13 +51,19 @@ func (r *EnvoyPluginReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error)
 	// Fetch the EnvoyPlugin instance
 	instance := &microserviceslimeiov1alpha1.EnvoyPlugin{}
 	err := r.Client.Get(context.TODO(), req.NamespacedName, instance)
-	// 异常分支
-	if err != nil && !errors.IsNotFound(err) {
-		return reconcile.Result{}, err
+
+	if err != nil {
+		if errors.IsNotFound(err) {
+			return reconcile.Result{}, nil
+		} else {
+			return reconcile.Result{}, err
+		}
 	}
 
-	// 资源删除
-	if err != nil && errors.IsNotFound(err) {
+	istioRev := model.IstioRevFromLabel(instance.Labels)
+	if !r.Env.RevInScope(istioRev) {
+		log.Debugf("existing envoyplugin %v istiorev %s but out %s, skip ...",
+			req.NamespacedName, istioRev, r.Env.IstioRev())
 		return reconcile.Result{}, nil
 	}
 
@@ -71,17 +80,28 @@ func (r *EnvoyPluginReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error)
 			return reconcile.Result{}, nil
 		}
 	}
+	model.PatchIstioRevLabel(&ef.Labels, istioRev)
 
 	found := &v1alpha3.EnvoyFilter{}
 	err = r.Client.Get(context.TODO(), types.NamespacedName{Name: ef.Name, Namespace: ef.Namespace}, found)
-	if err != nil && errors.IsNotFound(err) {
+	if err != nil {
+		if errors.IsNotFound(err) {
+			err = nil
+			found = nil
+		} else {
+			return reconcile.Result{}, err
+		}
+	}
+
+	if found == nil {
 		log.Infof("Creating a new EnvoyFilter in %s:%s", ef.Namespace, ef.Name)
 		err = r.Client.Create(context.TODO(), ef)
 		if err != nil {
 			return reconcile.Result{}, err
 		}
-	} else if err != nil {
-		return reconcile.Result{}, err
+	} else if model.IstioRevFromLabel(found.Labels) != istioRev {
+		log.Debugf("existed envoyfilter %v istioRev %s but our rev %s, skip updating to %+v",
+			req.NamespacedName, model.IstioRevFromLabel(found.Labels), istioRev, ef)
 	} else {
 		log.Infof("Update a EnvoyFilter in %s:%s", ef.Namespace, ef.Name)
 		ef.ResourceVersion = found.ResourceVersion
@@ -108,11 +128,13 @@ func (r *EnvoyPluginReconciler) newEnvoyFilterForEnvoyPlugin(cr *microservicesli
 			Namespace: cr.Namespace,
 		},
 	}
-	if m, err := util.ProtoToMap(envoyFilter); err == nil {
-		envoyFilterWrapper.Spec = m
-		return envoyFilterWrapper
+
+	m, err := util.ProtoToMap(envoyFilter)
+	if err != nil {
+		return nil
 	}
-	return nil
+	envoyFilterWrapper.Spec = m
+	return envoyFilterWrapper
 }
 
 func (r *EnvoyPluginReconciler) SetupWithManager(mgr ctrl.Manager) error {
