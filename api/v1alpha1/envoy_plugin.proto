@@ -37,9 +37,9 @@ syntax = "proto3";
 //             :path:
 //               text: /{{$1}}
 //           parse_body_behavior: DontParse
-import "pkg/apis/microservice/v1alpha1/plugin_manager.proto";
+import "plugin_manager.proto";
 
-package slime.microservice.v1alpha1;
+package slime.microservice.plugin.v1alpha1;
 
 option go_package = "slime.io/slime/modules/plugin/api/v1alpha1";
 
