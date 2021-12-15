@@ -52,22 +52,20 @@ func translatePluginToPatch(name, typeurl string, setting *types.Struct) *istio.
 	return patch
 }
 
-func translateRatelimitToPatch(settings *types.Struct) *istio.EnvoyFilter_Patch {
+func translateRatelimitToPatch(settings *types.Struct, route bool) *istio.EnvoyFilter_Patch {
 	patch := &istio.EnvoyFilter_Patch{}
-	patch.Value = settings
-	return patch
-}
-
-func translateRouteRatelimitToPatch(settings *types.Struct) *istio.EnvoyFilter_Patch {
-	patch := &istio.EnvoyFilter_Patch{}
-	patch.Value = &types.Struct{
-		Fields: map[string]*types.Value{
-			"route": {
-				Kind: &types.Value_StructValue{
-					StructValue: settings,
+	if route {
+		patch.Value = &types.Struct{
+			Fields: map[string]*types.Value{
+				"route": {
+					Kind: &types.Value_StructValue{
+						StructValue: settings,
+					},
 				},
 			},
-		},
+		}
+	} else {
+		patch.Value = settings
 	}
 	return patch
 }
@@ -80,79 +78,69 @@ func (r *EnvoyPluginReconciler) translateEnvoyPlugin(in *v1alpha1.EnvoyPlugin, o
 	}
 	out.ConfigPatches = make([]*istio.EnvoyFilter_EnvoyConfigObjectPatch, 0)
 
+	type target struct {
+		applyTo     istio.EnvoyFilter_ApplyTo
+		host, route string
+	}
+
+	var targets []target
 	for _, h := range in.Host {
+		targets = append(targets, target{
+			applyTo: istio.EnvoyFilter_VIRTUAL_HOST,
+			host:    h,
+		})
+	}
+	for _, fullRoute := range in.Route {
+		host, route := "", fullRoute
+		if ss := strings.SplitN(fullRoute, "/", 2); len(ss) == 2 {
+			host, route = ss[0], ss[1]
+		}
+
+		targets = append(targets, target{
+			applyTo: istio.EnvoyFilter_HTTP_ROUTE,
+			host:    host,
+			route:   route,
+		})
+	}
+
+	for _, t := range targets {
 		for _, p := range in.Plugins {
 			if p.PluginSettings == nil {
 				log.Errorf("empty setting, cause error happend, skip plugin build, plugin: %s", p.Name)
+				continue
 			}
+
 			var cfp *istio.EnvoyFilter_EnvoyConfigObjectPatch
 			switch m := p.PluginSettings.(type) {
 			case *v1alpha1.Plugin_Wasm:
 				log.Errorf("implentment, cause wasm not been support in envoyplugin settings, skip plugin build, plugin: %s")
+				continue
 			case *v1alpha1.Plugin_Inline:
+				vhost := &istio.EnvoyFilter_RouteConfigurationMatch_VirtualHostMatch{
+					Name: t.host,
+				}
+				if t.applyTo == istio.EnvoyFilter_HTTP_ROUTE {
+					vhost.Route = &istio.EnvoyFilter_RouteConfigurationMatch_RouteMatch{
+						Name: t.route,
+					}
+				}
 				cfp = &istio.EnvoyFilter_EnvoyConfigObjectPatch{
-					ApplyTo: istio.EnvoyFilter_VIRTUAL_HOST,
+					ApplyTo: t.applyTo,
 					Match: &istio.EnvoyFilter_EnvoyConfigObjectMatch{
 						ObjectTypes: &istio.EnvoyFilter_EnvoyConfigObjectMatch_RouteConfiguration{
 							RouteConfiguration: &istio.EnvoyFilter_RouteConfigurationMatch{
-								Vhost: &istio.EnvoyFilter_RouteConfigurationMatch_VirtualHostMatch{
-									Name: h,
-								},
+								Vhost: vhost,
 							},
 						},
 					},
 				}
 				if p.Name == util.Envoy_Ratelimit || p.Name == util.Envoy_Cors {
-					cfp.Patch = translateRatelimitToPatch(m.Inline.Settings)
+					cfp.Patch = translateRatelimitToPatch(m.Inline.Settings, t.applyTo == istio.EnvoyFilter_HTTP_ROUTE)
 				} else {
 					cfp.Patch = translatePluginToPatch(p.Name, p.TypeUrl, m.Inline.Settings)
 				}
 				cfp.Patch.Operation = istio.EnvoyFilter_Patch_MERGE
 			}
-			out.ConfigPatches = append(out.ConfigPatches, cfp)
-		}
-	}
-
-	for _, route := range in.Route {
-		ss := strings.SplitN(route, "/", 2)
-		if len(ss) != 2 {
-			// patch to all host
-			ss = []string{"", ss[0]}
-		}
-		for _, p := range in.Plugins {
-			if p.PluginSettings == nil {
-				log.Errorf("empty setting, cause error happend, skip plugin build, plugin: %s", p.Name)
-			}
-			var cfp *istio.EnvoyFilter_EnvoyConfigObjectPatch
-			switch m := p.PluginSettings.(type) {
-			case *v1alpha1.Plugin_Wasm:
-				log.Errorf("implentment, cause wasm not been support in envoyplugin settings, skip plugin build, plugin: %s", p.Name)
-			case *v1alpha1.Plugin_Inline:
-				cfp = &istio.EnvoyFilter_EnvoyConfigObjectPatch{
-					ApplyTo: istio.EnvoyFilter_HTTP_ROUTE,
-					Match: &istio.EnvoyFilter_EnvoyConfigObjectMatch{
-						ObjectTypes: &istio.EnvoyFilter_EnvoyConfigObjectMatch_RouteConfiguration{
-							RouteConfiguration: &istio.EnvoyFilter_RouteConfigurationMatch{
-								Vhost: &istio.EnvoyFilter_RouteConfigurationMatch_VirtualHostMatch{
-									Route: &istio.EnvoyFilter_RouteConfigurationMatch_RouteMatch{
-										Name: ss[1],
-									},
-								},
-							},
-						},
-					},
-				}
-				if ss[0] != "" {
-					cfp.Match.ObjectTypes.(*istio.EnvoyFilter_EnvoyConfigObjectMatch_RouteConfiguration).RouteConfiguration.Vhost.Name = ss[0]
-				}
-				if p.Name == util.Envoy_Ratelimit || p.Name == util.Envoy_Cors {
-					cfp.Patch = translateRouteRatelimitToPatch(m.Inline.Settings)
-				} else {
-					cfp.Patch = translatePluginToPatch(p.Name, p.TypeUrl, m.Inline.Settings)
-				}
-				cfp.Patch.Operation = istio.EnvoyFilter_Patch_MERGE
-			}
-
 			out.ConfigPatches = append(out.ConfigPatches, cfp)
 		}
 	}
