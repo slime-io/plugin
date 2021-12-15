@@ -121,7 +121,7 @@ func (r *PluginManagerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 }
 
 func (r *PluginManagerReconciler) newPluginManagerForEnvoyPlugin(cr *wrapper.PluginManager) *v1alpha3.EnvoyFilter {
-	pb, err := util.FromJSONMap("slime.microservice.v1alpha1.PluginManager", cr.Spec)
+	pb, err := util.FromJSONMap("slime.microservice.plugin.v1alpha1.PluginManager", cr.Spec)
 	if err != nil {
 		log.Errorf("unable to convert pluginManager to envoyFilter, %+v", err)
 		return nil

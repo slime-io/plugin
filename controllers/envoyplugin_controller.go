@@ -115,7 +115,7 @@ func (r *EnvoyPluginReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error)
 }
 
 func (r *EnvoyPluginReconciler) newEnvoyFilterForEnvoyPlugin(cr *microserviceslimeiov1alpha1.EnvoyPlugin) *v1alpha3.EnvoyFilter {
-	pb, err := util.FromJSONMap("slime.microservice.v1alpha1.EnvoyPlugin", cr.Spec)
+	pb, err := util.FromJSONMap("slime.microservice.plugin.v1alpha1.EnvoyPlugin", cr.Spec)
 	if err != nil {
 		log.Errorf("unable to convert envoyPlugin to envoyFilter,%+v", err)
 		return nil
