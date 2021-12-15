@@ -110,6 +110,16 @@ func (r *EnvoyPluginReconciler) translateEnvoyPlugin(in *v1alpha1.EnvoyPlugin, o
 				continue
 			}
 
+			patchCtx := istio.EnvoyFilter_ANY
+			if !strings.HasPrefix(t.host, "inbound|") { // keep backward compatibility
+				switch p.ListenerType {
+				case v1alpha1.Plugin_Outbound:
+					patchCtx = istio.EnvoyFilter_SIDECAR_OUTBOUND
+				case v1alpha1.Plugin_Inbound:
+					patchCtx = istio.EnvoyFilter_SIDECAR_INBOUND
+				}
+			}
+
 			var cfp *istio.EnvoyFilter_EnvoyConfigObjectPatch
 			switch m := p.PluginSettings.(type) {
 			case *v1alpha1.Plugin_Wasm:
@@ -127,6 +137,7 @@ func (r *EnvoyPluginReconciler) translateEnvoyPlugin(in *v1alpha1.EnvoyPlugin, o
 				cfp = &istio.EnvoyFilter_EnvoyConfigObjectPatch{
 					ApplyTo: t.applyTo,
 					Match: &istio.EnvoyFilter_EnvoyConfigObjectMatch{
+						Context: patchCtx,
 						ObjectTypes: &istio.EnvoyFilter_EnvoyConfigObjectMatch_RouteConfiguration{
 							RouteConfiguration: &istio.EnvoyFilter_RouteConfigurationMatch{
 								Vhost: vhost,
