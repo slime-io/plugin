@@ -7,6 +7,7 @@ package controllers
 
 import (
 	"fmt"
+	microserviceslimeiov1alpha1 "slime.io/slime/modules/plugin/api/v1alpha1/wrapper"
 	"strings"
 
 	envoy_config_core_v3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
@@ -17,7 +18,18 @@ import (
 
 	"github.com/gogo/protobuf/types"
 	istio "istio.io/api/networking/v1alpha3"
+	microserviceslimeiov1alpha1types "slime.io/slime/modules/plugin/api/v1alpha1"
 )
+
+// genGatewayCfps is a custom func to handle EnvoyPlugin gateway
+// default is nil, ignore gateway
+var genGatewayCfps func(in *microserviceslimeiov1alpha1types.EnvoyPlugin, namespace string, t target, patchCtx istio.EnvoyFilter_PatchContext,
+	p *microserviceslimeiov1alpha1types.Plugin, m *v1alpha1.Plugin_Inline) []*istio.EnvoyFilter_EnvoyConfigObjectPatch
+
+type target struct {
+	applyTo     istio.EnvoyFilter_ApplyTo
+	host, route string
+}
 
 // translate EnvoyPlugin
 func translatePluginToPatch(name, typeurl string, setting *types.Struct) *istio.EnvoyFilter_Patch {
@@ -70,18 +82,20 @@ func translateRatelimitToPatch(settings *types.Struct, route bool) *istio.EnvoyF
 	return patch
 }
 
-func (r *EnvoyPluginReconciler) translateEnvoyPlugin(in *v1alpha1.EnvoyPlugin, out *istio.EnvoyFilter) {
+func (r *EnvoyPluginReconciler) translateEnvoyPlugin(cr *microserviceslimeiov1alpha1.EnvoyPlugin, out *istio.EnvoyFilter) {
+	pb, err := util.FromJSONMap("slime.microservice.plugin.v1alpha1.EnvoyPlugin", cr.Spec)
+	if err != nil {
+		log.Errorf("unable to convert envoyPlugin to envoyFilter,%+v", err)
+		return
+	}
+	in := pb.(*microserviceslimeiov1alpha1types.EnvoyPlugin)
+
 	if in.WorkloadSelector != nil {
 		out.WorkloadSelector = &istio.WorkloadSelector{
 			Labels: in.WorkloadSelector.Labels,
 		}
 	}
 	out.ConfigPatches = make([]*istio.EnvoyFilter_EnvoyConfigObjectPatch, 0)
-
-	type target struct {
-		applyTo     istio.EnvoyFilter_ApplyTo
-		host, route string
-	}
 
 	var targets []target
 	for _, h := range in.Host {
@@ -120,41 +134,51 @@ func (r *EnvoyPluginReconciler) translateEnvoyPlugin(in *v1alpha1.EnvoyPlugin, o
 				}
 			}
 
-			var cfp *istio.EnvoyFilter_EnvoyConfigObjectPatch
 			switch m := p.PluginSettings.(type) {
 			case *v1alpha1.Plugin_Wasm:
 				log.Errorf("implentment, cause wasm not been support in envoyplugin settings, skip plugin build, plugin: %s")
 				continue
 			case *v1alpha1.Plugin_Inline:
-				vhost := &istio.EnvoyFilter_RouteConfigurationMatch_VirtualHostMatch{
-					Name: t.host,
-				}
-				if t.applyTo == istio.EnvoyFilter_HTTP_ROUTE {
-					vhost.Route = &istio.EnvoyFilter_RouteConfigurationMatch_RouteMatch{
-						Name: t.route,
-					}
-				}
-				cfp = &istio.EnvoyFilter_EnvoyConfigObjectPatch{
-					ApplyTo: t.applyTo,
-					Match: &istio.EnvoyFilter_EnvoyConfigObjectMatch{
-						Context: patchCtx,
-						ObjectTypes: &istio.EnvoyFilter_EnvoyConfigObjectMatch_RouteConfiguration{
-							RouteConfiguration: &istio.EnvoyFilter_RouteConfigurationMatch{
-								Vhost: vhost,
-							},
-						},
-					},
-				}
-				if p.Name == util.Envoy_Ratelimit || p.Name == util.Envoy_Cors {
-					cfp.Patch = translateRatelimitToPatch(m.Inline.Settings, t.applyTo == istio.EnvoyFilter_HTTP_ROUTE)
+				if len(in.Gateway) > 0 && genGatewayCfps != nil {
+					out.ConfigPatches = genGatewayCfps(in, cr.Namespace, t, patchCtx, p, m)
 				} else {
-					cfp.Patch = translatePluginToPatch(p.Name, p.TypeUrl, m.Inline.Settings)
+					vhost := &istio.EnvoyFilter_RouteConfigurationMatch_VirtualHostMatch{
+						Name: t.host,
+					}
+					if t.applyTo == istio.EnvoyFilter_HTTP_ROUTE {
+						vhost.Route = &istio.EnvoyFilter_RouteConfigurationMatch_RouteMatch{
+							Name: t.route,
+						}
+					}
+					cfp := generateCfp(t, patchCtx, vhost, p, m)
+					out.ConfigPatches = append(out.ConfigPatches, cfp)
 				}
-				cfp.Patch.Operation = istio.EnvoyFilter_Patch_MERGE
 			}
-			out.ConfigPatches = append(out.ConfigPatches, cfp)
 		}
 	}
+	log.Debugf("translate EnvoyPlugin to Envoyfilter: %v", out)
+}
+
+func generateCfp(t target, patchCtx istio.EnvoyFilter_PatchContext, vhost *istio.EnvoyFilter_RouteConfigurationMatch_VirtualHostMatch,
+	p *microserviceslimeiov1alpha1types.Plugin, m *v1alpha1.Plugin_Inline) *istio.EnvoyFilter_EnvoyConfigObjectPatch {
+	cfp := &istio.EnvoyFilter_EnvoyConfigObjectPatch{
+		ApplyTo: t.applyTo,
+		Match: &istio.EnvoyFilter_EnvoyConfigObjectMatch{
+			Context: patchCtx,
+			ObjectTypes: &istio.EnvoyFilter_EnvoyConfigObjectMatch_RouteConfiguration{
+				RouteConfiguration: &istio.EnvoyFilter_RouteConfigurationMatch{
+					Vhost: vhost,
+				},
+			},
+		},
+	}
+	if p.Name == util.Envoy_Ratelimit || p.Name == util.Envoy_Cors {
+		cfp.Patch = translateRatelimitToPatch(m.Inline.Settings, t.applyTo == istio.EnvoyFilter_HTTP_ROUTE)
+	} else {
+		cfp.Patch = translatePluginToPatch(p.Name, p.TypeUrl, m.Inline.Settings)
+	}
+	cfp.Patch.Operation = istio.EnvoyFilter_Patch_MERGE
+	return cfp
 }
 
 // translate PluginManager

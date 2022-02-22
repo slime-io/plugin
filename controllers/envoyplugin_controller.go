@@ -32,7 +32,6 @@ import (
 	"slime.io/slime/framework/bootstrap"
 	"slime.io/slime/framework/model"
 	"slime.io/slime/framework/util"
-	microserviceslimeiov1alpha1types "slime.io/slime/modules/plugin/api/v1alpha1"
 	microserviceslimeiov1alpha1 "slime.io/slime/modules/plugin/api/v1alpha1/wrapper"
 )
 
@@ -115,13 +114,11 @@ func (r *EnvoyPluginReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error)
 }
 
 func (r *EnvoyPluginReconciler) newEnvoyFilterForEnvoyPlugin(cr *microserviceslimeiov1alpha1.EnvoyPlugin) *v1alpha3.EnvoyFilter {
-	pb, err := util.FromJSONMap("slime.microservice.plugin.v1alpha1.EnvoyPlugin", cr.Spec)
-	if err != nil {
-		log.Errorf("unable to convert envoyPlugin to envoyFilter,%+v", err)
+	envoyFilter := &istio.EnvoyFilter{}
+	r.translateEnvoyPlugin(cr, envoyFilter)
+	if envoyFilter == nil {
 		return nil
 	}
-	envoyFilter := &istio.EnvoyFilter{}
-	r.translateEnvoyPlugin(pb.(*microserviceslimeiov1alpha1types.EnvoyPlugin), envoyFilter)
 	envoyFilterWrapper := &v1alpha3.EnvoyFilter{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      cr.Name,
