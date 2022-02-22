@@ -175,20 +175,26 @@ func (r *PluginManagerReconciler) translatePluginManager(in *v1alpha1.PluginMana
 }
 
 func (r *PluginManagerReconciler) convertPluginToPatch(in *v1alpha1.Plugin) (*istio.EnvoyFilter_EnvoyConfigObjectPatch, error) {
+	listener := &istio.EnvoyFilter_ListenerMatch{
+		FilterChain: &istio.EnvoyFilter_ListenerMatch_FilterChainMatch{
+			Filter: &istio.EnvoyFilter_ListenerMatch_FilterMatch{
+				Name: util.Envoy_HttpConnectionManager,
+				SubFilter: &istio.EnvoyFilter_ListenerMatch_SubFilterMatch{
+					Name: util.Envoy_Route,
+				},
+			},
+		},
+	}
+
+	if in.Port != 0 {
+		listener.PortNumber = in.Port
+	}
+
 	out := &istio.EnvoyFilter_EnvoyConfigObjectPatch{
 		ApplyTo: istio.EnvoyFilter_HTTP_FILTER,
 		Match: &istio.EnvoyFilter_EnvoyConfigObjectMatch{
 			ObjectTypes: &istio.EnvoyFilter_EnvoyConfigObjectMatch_Listener{
-				Listener: &istio.EnvoyFilter_ListenerMatch{
-					FilterChain: &istio.EnvoyFilter_ListenerMatch_FilterChainMatch{
-						Filter: &istio.EnvoyFilter_ListenerMatch_FilterMatch{
-							Name: util.Envoy_HttpConnectionManager,
-							SubFilter: &istio.EnvoyFilter_ListenerMatch_SubFilterMatch{
-								Name: util.Envoy_Route,
-							},
-						},
-					},
-				},
+				Listener: listener,
 			},
 		},
 		Patch: &istio.EnvoyFilter_Patch{

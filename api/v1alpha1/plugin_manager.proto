@@ -80,6 +80,7 @@ message Plugin {
         // plugin compiled inside envoy
         Inline inline = 7;
     }
+    uint32 port = 8;
 }
 
 message Wasm {
