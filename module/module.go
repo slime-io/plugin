@@ -10,7 +10,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
-	"slime.io/slime/framework/apis/config/v1alpha1"
 	istionetworkingapi "slime.io/slime/framework/apis/networking/v1alpha3"
 	"slime.io/slime/framework/bootstrap"
 	pluginapiv1alpha1 "slime.io/slime/modules/plugin/api/v1alpha1"
@@ -20,7 +19,7 @@ import (
 var log = model.ModuleLog
 
 type Module struct {
-	config v1alpha1.Plugin
+	config pluginapiv1alpha1.PluginModule
 }
 
 func (m *Module) Name() string {
@@ -46,9 +45,7 @@ func (m *Module) InitScheme(scheme *runtime.Scheme) error {
 
 func (m *Module) InitManager(mgr manager.Manager, env bootstrap.Environment, cbs module.InitCallbacks) error {
 	cfg := &m.config
-	if env.Config != nil && env.Config.Plugin != nil {
-		cfg = env.Config.Plugin
-	}
+
 	_ = cfg // unused until now
 
 	var err error
