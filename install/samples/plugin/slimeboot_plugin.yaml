@@ -5,7 +5,8 @@ metadata:
   namespace: mesh-operator
 spec:
   module:
-    - name: plugin
+    - name: plugin # custom value
+      kind: plugin # should be "plugin"
       enable: true
   image:
     pullPolicy: Always
