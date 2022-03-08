@@ -20,6 +20,6 @@ replace (
 	k8s.io/api => k8s.io/api v0.17.2
 	k8s.io/apimachinery => k8s.io/apimachinery v0.17.2
 
-	slime.io/slime/framework v0.0.0 => github.com/slime-io/slime/framework v0.3.10
+	slime.io/slime/framework v0.0.0 => github.com/slime-io/slime/framework v0.3.12-0.20220307092406-5d25611d4318
 //slime.io/slime/framework => ../slime/framework
 )
