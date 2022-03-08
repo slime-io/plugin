@@ -20,9 +20,9 @@ metadata:
   namespace: mesh-operator
 spec:
   module:
-    - name: plugin
-      plugin:
-        enable: true
+    - name: plugin # custom value
+      kind: plugin # should be "plugin"
+      enable: true
   image:
     pullPolicy: Always
     repository: docker.io/slimeio/slime-plugin
