@@ -72,6 +72,7 @@ message Plugin {
     enum ListenerType {
         Outbound = 0;
         Inbound = 1;
+        Gateway = 2;
     }
     ListenerType listenerType = 4;
     string type_url = 5;

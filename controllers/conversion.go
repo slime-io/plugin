@@ -131,6 +131,8 @@ func (r *EnvoyPluginReconciler) translateEnvoyPlugin(cr *microserviceslimeiov1al
 					patchCtx = istio.EnvoyFilter_SIDECAR_OUTBOUND
 				case v1alpha1.Plugin_Inbound:
 					patchCtx = istio.EnvoyFilter_SIDECAR_INBOUND
+				case v1alpha1.Plugin_Gateway:
+					patchCtx = istio.EnvoyFilter_GATEWAY
 				}
 			}
 
@@ -229,10 +231,13 @@ func (r *PluginManagerReconciler) convertPluginToPatch(in *v1alpha1.Plugin) (*is
 		},
 	}
 
-	if in.ListenerType == v1alpha1.Plugin_Inbound {
-		out.Match.Context = istio.EnvoyFilter_SIDECAR_INBOUND
-	} else {
+	switch in.ListenerType {
+	case v1alpha1.Plugin_Outbound:
 		out.Match.Context = istio.EnvoyFilter_SIDECAR_OUTBOUND
+	case v1alpha1.Plugin_Inbound:
+		out.Match.Context = istio.EnvoyFilter_SIDECAR_INBOUND
+	case v1alpha1.Plugin_Gateway:
+		out.Match.Context = istio.EnvoyFilter_GATEWAY
 	}
 
 	var err error
