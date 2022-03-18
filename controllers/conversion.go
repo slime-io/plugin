@@ -119,6 +119,10 @@ func (r *EnvoyPluginReconciler) translateEnvoyPlugin(cr *microserviceslimeiov1al
 
 	for _, t := range targets {
 		for _, p := range in.Plugins {
+			if !p.Enable {
+				continue
+			}
+
 			if p.PluginSettings == nil {
 				log.Errorf("empty setting, cause error happend, skip plugin build, plugin: %s", p.Name)
 				continue
@@ -189,8 +193,10 @@ func (r *PluginManagerReconciler) translatePluginManager(in *v1alpha1.PluginMana
 		Labels: in.WorkloadLabels,
 	}
 	out.ConfigPatches = make([]*istio.EnvoyFilter_EnvoyConfigObjectPatch, 0)
-	for i := range in.Plugin {
-		p := in.Plugin[len(in.Plugin)-i-1]
+	for _, p := range in.Plugin {
+		if !p.Enable {
+			continue
+		}
 		patch, err := r.convertPluginToPatch(p)
 		if err != nil {
 			log.Errorf("cause error happened, skip plugin build, plugin: %s, %+v", p.Name, err)
