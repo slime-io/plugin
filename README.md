@@ -192,6 +192,7 @@ spec:
     - inbound|http|80/default
   plugins:
   - name: envoy.ratelimit
+    enable: true
     inline:
       settings:
         rate_limits:
