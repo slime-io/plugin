@@ -7,18 +7,17 @@ package controllers
 
 import (
 	"fmt"
-	microserviceslimeiov1alpha1 "slime.io/slime/modules/plugin/api/v1alpha1/wrapper"
 	"strings"
-
-	envoy_config_core_v3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
-	envoy_extensions_wasm_v3 "github.com/envoyproxy/go-control-plane/envoy/extensions/wasm/v3"
 
 	"slime.io/slime/framework/util"
 	"slime.io/slime/modules/plugin/api/v1alpha1"
+	microserviceslimeiov1alpha1types "slime.io/slime/modules/plugin/api/v1alpha1"
+	microserviceslimeiov1alpha1 "slime.io/slime/modules/plugin/api/v1alpha1/wrapper"
 
+	envoy_config_core_v3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
+	envoy_extensions_wasm_v3 "github.com/envoyproxy/go-control-plane/envoy/extensions/wasm/v3"
 	"github.com/gogo/protobuf/types"
 	istio "istio.io/api/networking/v1alpha3"
-	microserviceslimeiov1alpha1types "slime.io/slime/modules/plugin/api/v1alpha1"
 )
 
 // genGatewayCfps is a custom func to handle EnvoyPlugin gateway
@@ -29,6 +28,22 @@ var genGatewayCfps func(in *microserviceslimeiov1alpha1types.EnvoyPlugin, namesp
 type target struct {
 	applyTo     istio.EnvoyFilter_ApplyTo
 	host, route string
+}
+
+var (
+	directPatchingPlugins = []string{
+		util.Envoy_Ratelimit,
+		util.Envoy_Cors,
+	}
+)
+
+func directPatching(name string) bool {
+	for _, plugin := range directPatchingPlugins {
+		if name == plugin {
+			return true
+		}
+	}
+	return false
 }
 
 // translate EnvoyPlugin
@@ -64,7 +79,7 @@ func translatePluginToPatch(name, typeurl string, setting *types.Struct) *istio.
 	return patch
 }
 
-func translateRatelimitToPatch(settings *types.Struct, route bool) *istio.EnvoyFilter_Patch {
+func translatePluginToDirectPatch(settings *types.Struct, route bool) *istio.EnvoyFilter_Patch {
 	patch := &istio.EnvoyFilter_Patch{}
 	if route {
 		patch.Value = &types.Struct{
@@ -178,8 +193,9 @@ func generateCfp(t target, patchCtx istio.EnvoyFilter_PatchContext, vhost *istio
 			},
 		},
 	}
-	if p.Name == util.Envoy_Ratelimit || p.Name == util.Envoy_Cors {
-		cfp.Patch = translateRatelimitToPatch(m.Inline.Settings, t.applyTo == istio.EnvoyFilter_HTTP_ROUTE)
+
+	if directPatching(p.Name) {
+		cfp.Patch = translatePluginToDirectPatch(m.Inline.Settings, t.applyTo == istio.EnvoyFilter_HTTP_ROUTE)
 	} else {
 		cfp.Patch = translatePluginToPatch(p.Name, p.TypeUrl, m.Inline.Settings)
 	}
