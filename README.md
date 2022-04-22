@@ -206,6 +206,16 @@ spec:
                   google_re2: {}
                   regex: testt
           stage: 0
+  - name: envoy.cors
+    enable: true
+    inline:
+      settings:
+        cors:
+          allow_origin_string_match:
+          - string_match:
+              safe_regex_match:
+                google_re2: {}
+                regex: www.163.com|
 ```
 
 And you will get the envoyfilter
@@ -252,6 +262,23 @@ spec:
                     google_re2: {}
                     regex: testt
             stage: 0
+  - applyTo: HTTP_ROUTE
+    match:
+      routeConfiguration:
+        vhost:
+          name: inbound|http|80
+          route:
+            name: default
+    patch:
+      operation: MERGE
+      value:
+        route:
+          cors:
+            allow_origin_string_match:
+            - string_match:
+                safe_regex_match:
+                  google_re2: {}
+                  regex: www.163.com|
   workloadSelector:
     labels:
       app: reviews
