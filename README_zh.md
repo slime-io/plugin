@@ -195,7 +195,7 @@ spec:
   route:
     - inbound|http|80/default
   plugins:
-  - name: envoy.ratelimit
+  - name: envoy.filters.network.ratelimit
     enable: true
     inline:
       settings:
@@ -210,7 +210,7 @@ spec:
                   google_re2: {}
                   regex: testt
           stage: 0
-  - name: envoy.cors
+  - name: envoy.filters.http.cors
     enable: true
     inline:
       settings:
