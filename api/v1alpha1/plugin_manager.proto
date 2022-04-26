@@ -92,5 +92,7 @@ message Wasm {
 
 message Inline {
     google.protobuf.Struct settings = 1;
+    bool directPatch = 2;
+    string fieldPatchTo = 3;
 }
 
