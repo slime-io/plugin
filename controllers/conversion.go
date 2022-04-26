@@ -32,8 +32,9 @@ type target struct {
 
 var (
 	directPatchingPlugins = []string{
-		util.Envoy_Ratelimit,
+		util.Envoy_HttpRatelimit,
 		util.Envoy_Cors,
+		util.Envoy_Ratelimit_v1, // keep backward compatibility
 	}
 )
 
