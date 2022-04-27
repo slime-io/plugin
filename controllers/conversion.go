@@ -80,17 +80,16 @@ func translatePluginToPatch(name, typeurl string, setting *types.Struct) *istio.
 	return patch
 }
 
-func translatePluginToDirectPatch(settings *types.Struct, applyToHTTPRoute bool, fieldPatchTo string) *istio.EnvoyFilter_Patch {
-	patch := &istio.EnvoyFilter_Patch{}
-
-	if applyToHTTPRoute && fieldPatchTo == "" {
+func translateRlsAndCorsToDirectPatch(settings *types.Struct, applyToHTTPRoute bool) *istio.EnvoyFilter_Patch {
+	fieldPatchTo := ""
+	if applyToHTTPRoute {
 		fieldPatchTo = "route"
 	}
+	return translatePluginToDirectPatch(settings, fieldPatchTo)
+}
 
-	if fieldPatchTo == "ROOT" {
-		fieldPatchTo = ""
-	}
-
+func translatePluginToDirectPatch(settings *types.Struct, fieldPatchTo string) *istio.EnvoyFilter_Patch {
+	patch := &istio.EnvoyFilter_Patch{}
 	if fieldPatchTo != "" {
 		patch.Value = &types.Struct{
 			Fields: map[string]*types.Value{
@@ -204,11 +203,14 @@ func generateCfp(t target, patchCtx istio.EnvoyFilter_PatchContext, vhost *istio
 		},
 	}
 
-	if m.Inline.DirectPatch || directPatching(p.Name) {
-		cfp.Patch = translatePluginToDirectPatch(m.Inline.Settings, t.applyTo == istio.EnvoyFilter_HTTP_ROUTE, m.Inline.FieldPatchTo)
+	if directPatching(p.Name) {
+		cfp.Patch = translateRlsAndCorsToDirectPatch(m.Inline.Settings, t.applyTo == istio.EnvoyFilter_HTTP_ROUTE)
+	} else if m.Inline.DirectPatch {
+		cfp.Patch = translatePluginToDirectPatch(m.Inline.Settings, m.Inline.FieldPatchTo)
 	} else {
 		cfp.Patch = translatePluginToPatch(p.Name, p.TypeUrl, m.Inline.Settings)
 	}
+
 	cfp.Patch.Operation = istio.EnvoyFilter_Patch_MERGE
 	return cfp
 }
