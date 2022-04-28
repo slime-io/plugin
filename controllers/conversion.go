@@ -170,7 +170,8 @@ func (r *EnvoyPluginReconciler) translateEnvoyPlugin(cr *microserviceslimeiov1al
 				continue
 			case *v1alpha1.Plugin_Inline:
 				if len(in.Gateway) > 0 && genGatewayCfps != nil {
-					out.ConfigPatches = genGatewayCfps(in, cr.Namespace, t, patchCtx, p, m)
+					cfps := genGatewayCfps(in, cr.Namespace, t, patchCtx, p, m)
+					out.ConfigPatches = append(out.ConfigPatches, cfps...)
 				} else {
 					vhost := &istio.EnvoyFilter_RouteConfigurationMatch_VirtualHostMatch{
 						Name: t.host,
