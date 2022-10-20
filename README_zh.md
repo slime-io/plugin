@@ -4,6 +4,8 @@
   - [PluginManager样例](#pluginmanager样例)
   - [EnvoyPlugin样例](#envoyplugin样例)
 
+**本项目已经被迁移至** [slime-io/slime](https://github.com/slime-io/slime/tree/master/staging/src/slime.io/slime/modules/plugin)
+
 [English](./README.md) 
 
 ### HTTP插件管理
