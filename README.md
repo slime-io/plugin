@@ -4,6 +4,8 @@
   - [PluginManager Example](#pluginmanager-example)
   - [EnvoyPlugin Example](#envoyplugin-example)
 
+**The project has been migrated to** [slime-io/slime](https://github.com/slime-io/slime/tree/master/staging/src/slime.io/slime/modules/plugin)
+
 [中文](./README_zh.md) 
 
 ### Http Plugin Management
